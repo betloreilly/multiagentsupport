@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendra Agent Chat</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            background-color: #f7f9fc;
+            color: #333;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        #chat-container {
+            width: 90%;
+            max-width: 700px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(20, 20, 70, 0.1);
+            padding: 25px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        #session-id-container {
+            margin-bottom: 15px;
+        }
+        #session-id-input {
+            width: calc(100% - 24px); /* Adjust for padding and border */
+            padding: 12px;
+            margin-bottom: 5px;
+            border: 1px solid #dfe3e8;
+            border-radius: 6px;
+            font-size: 14px;
+            box-shadow: inset 0 1px 1px rgba(0,0,0,0.05);
+        }
+        #session-id-input:focus {
+            border-color: #007bff;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(0,123,255,.25);
+        }
+        small {
+            color: #6c757d;
+            font-size: 0.85em;
+        }
+        #chat-output {
+            flex-grow: 1;
+            height: 450px;
+            overflow-y: auto;
+            border: 1px solid #e3e8ee;
+            padding: 15px;
+            margin-bottom: 15px;
+            background-color: #fdfdfd;
+            border-radius: 8px;
+        }
+        .message {
+            margin-bottom: 12px;
+            padding: 10px 15px;
+            border-radius: 18px;
+            line-height: 1.5;
+            max-width: 75%;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background-color: #007bff;
+            color: white;
+            text-align: left; /* For a more standard bubble look */
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
+        }
+        .bot-message {
+            background-color: #e9ecef;
+            color: #343a40;
+            text-align: left;
+            margin-right: auto;
+            border-bottom-left-radius: 4px;
+            position: relative; /* For icon positioning */
+            padding-left: 40px; /* Make space for icon */
+        }
+        .bot-message::before {
+            content: "🤖"; /* Robot emoji as agent icon */
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 20px;
+        }
+        #input-area {
+            display: flex;
+            width: 100%;
+            gap: 10px; /* Adds space between input and button */
+        }
+        #message-input {
+            flex-grow: 1;
+            padding: 12px 15px;
+            border: 1px solid #dfe3e8;
+            border-radius: 6px;
+            font-size: 16px;
+            box-shadow: inset 0 1px 1px rgba(0,0,0,0.05);
+        }
+        #message-input:focus {
+            border-color: #007bff;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(0,123,255,.25);
+        }
+        #send-button {
+            padding: 12px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: background-color 0.2s ease;
+        }
+        #send-button:hover {
+            background-color: #0056b3;
+        }
+        /* Scrollbar styling (optional, for a more polished look) */
+        #chat-output::-webkit-scrollbar {
+            width: 8px;
+        }
+        #chat-output::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        #chat-output::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 10px;
+        }
+        #chat-output::-webkit-scrollbar-thumb:hover {
+            background: #a1a1a1;
+        }
+    </style>
+</head>
+<body>
+    <h1>Vendra Agent</h1>
+
+    <div id="chat-container">
+        <div id="chat-output"></div>
+        <div id="input-area">
+            <input type="text" id="message-input" placeholder="Type your message...">
+            <button id="send-button">Send</button>
+        </div>
+    </div>
+
+    <script>
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const chatOutput = document.getElementById('chat-output');
+
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        function appendMessage(text, className) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', className);
+            messageElement.textContent = text;
+            chatOutput.appendChild(messageElement);
+            chatOutput.scrollTop = chatOutput.scrollHeight; // Scroll to the bottom
+            return messageElement; // Return the created element
+        }
+
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            appendMessage(message, 'user-message');
+            messageInput.value = '';
+
+            // Create an empty placeholder for the bot's message, which will be filled by the stream
+            const botMessageElement = appendMessage('', 'bot-message'); 
+            // Optionally, add a loading indicator to botMessageElement here
+            // botMessageElement.textContent = '🤖 Typing...'; 
+
+            try {
+                const requestBody = { message: message };
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (response.ok && response.headers.get('content-type')?.includes('text/event-stream')) {
+                    // Handle streaming response
+                    // botMessageElement.textContent = ''; // Clear loading indicator if any
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) {
+                            // Process any remaining buffer content if stream ends abruptly
+                            if (buffer.startsWith('data:')) {
+                                try {
+                                    const jsonStr = buffer.substring(5).trim();
+                                    if (jsonStr) {
+                                        const parsedData = JSON.parse(jsonStr);
+                                        // Langflow streaming often sends data like: {"event": "on_llm_stream", "data": {"chunk": "text token"}}
+                                        // Or simpler forms for direct /run endpoint: may be just {"chunk": "..."} or {"message": "..."} inside 'data:'
+                                        const chunk = parsedData.data?.chunk || parsedData.chunk || parsedData.message || (typeof parsedData === 'string' ? parsedData : '');
+                                        botMessageElement.textContent += chunk;
+                                    }
+                                } catch (e) { /* Ignore final non-JSON chunk parse error */ }
+                            }
+                            break;
+                        }
+                        buffer += decoder.decode(value, { stream: true });
+                        
+                        let eolIndex;
+                        // SSE messages are separated by double newlines (\n\n)
+                        while ((eolIndex = buffer.indexOf('\n\n')) !== -1) {
+                            const singleEventString = buffer.substring(0, eolIndex).trim();
+                            buffer = buffer.substring(eolIndex + 2);
+
+                            if (singleEventString.startsWith('data:')) {
+                                const jsonStr = singleEventString.substring(5).trim(); // Get content after "data: "
+                                if (jsonStr) {
+                                    try {
+                                        const parsedData = JSON.parse(jsonStr);
+                                        let textChunk = '';
+                                        // Check for Langchain standard stream events
+                                        if (parsedData.event && (parsedData.event === 'on_llm_stream' || parsedData.event === 'on_chain_stream')) {
+                                            if (parsedData.data && parsedData.data.chunk) {
+                                                textChunk = parsedData.data.chunk;
+                                            }
+                                        } 
+                                        // Fallback for simpler direct streaming from Langflow /run if not wrapped in Langchain events
+                                        else if (parsedData.chunk) { textChunk = parsedData.chunk; }
+                                        else if (parsedData.message) { textChunk = parsedData.message; }
+                                        else if (parsedData.text) { textChunk = parsedData.text; } // General text field
+                                        // Check for response similar to non-streaming, if streamed in one go
+                                        else if (parsedData.outputs && parsedData.outputs[0]?.outputs[0]?.results?.message?.data?.text) {
+                                            textChunk = parsedData.outputs[0].outputs[0].results.message.data.text;
+                                        } else if (typeof parsedData === 'string') { // If data: "raw string"
+                                            textChunk = parsedData;
+                                        }
+
+                                        botMessageElement.textContent += textChunk;
+                                        chatOutput.scrollTop = chatOutput.scrollHeight;
+                                    } catch (e) {
+                                        console.warn('Error parsing streamed JSON:', e, 'Raw data:', jsonStr);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if (response.ok) {
+                    // Handle non-streaming JSON response
+                    // botMessageElement.textContent = ''; // Clear loading indicator if any
+                    const data = await response.json();
+                    let botResponse = 'No response text found.';
+                     // ... (existing non-streaming response handling logic, ensure it updates botMessageElement.textContent)
+                    if (data && data.outputs && data.outputs.length > 0 && 
+                        data.outputs[0].outputs && data.outputs[0].outputs.length > 0 && 
+                        data.outputs[0].outputs[0].results && data.outputs[0].outputs[0].results.message && 
+                        data.outputs[0].outputs[0].results.message.data && data.outputs[0].outputs[0].results.message.data.text) {
+                        botResponse = data.outputs[0].outputs[0].results.message.data.text;
+                    } else if (data && data.results && data.results.message && data.results.message.data && data.results.message.data.text){
+                         botResponse = data.results.message.data.text;
+                    } else if (data && data.text) { 
+                         botResponse = data.text;
+                    } else if (data.detail) { 
+                        botResponse = `Error: ${data.detail}`;
+                    }
+                    botMessageElement.textContent = botResponse;
+
+                } else {
+                    // Handle HTTP errors (e.g., 4xx, 5xx)
+                    // botMessageElement.textContent = ''; // Clear loading indicator if any
+                    const errorData = await response.json().catch(() => ({ error: 'API Error with no JSON response' }));
+                    let errorMessage = errorData.detail || errorData.error || `API Error: ${response.status}`;
+                    if (typeof errorMessage === 'object') errorMessage = JSON.stringify(errorMessage);
+                    botMessageElement.textContent = `Error: ${errorMessage}`;
+                }
+            } catch (error) {
+                console.error('Frontend error:', error);
+                // botMessageElement.textContent = ''; // Clear loading indicator if any
+                botMessageElement.textContent = 'Error sending message. See console for details.';
+            }
+            chatOutput.scrollTop = chatOutput.scrollHeight;
+        }
+    </script>
+</body>
+</html> 
